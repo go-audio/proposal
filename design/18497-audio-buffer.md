@@ -6,7 +6,7 @@ With input from Jaana Burcu Dogan and Francesc Campoy Flores.
 
 Last updated: Jan 2 2017
 
-Discussion at https://golang.org/issue/NNNNN.
+Discussion at https://golang.org/issue/18497.
 
 ## Abstract
 
