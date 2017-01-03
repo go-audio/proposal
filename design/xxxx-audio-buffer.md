@@ -17,31 +17,32 @@ using a shared interface.
 ## Background
 
 Abstracting audio digital signal processing is quite challenging due the nature of the formats and
-usages. In a [previous proposal](https://github.com/golang/proposal/blob/master/design/13432-mobile-audio.md) Jaana
-advocated for an audio decoding and playback interface. But defining such an interface
-is extremely challenging and the proposal was withdrawn.
-This proposal is built on the many conversations Jaana and I had which resulted in a different approach and a reduced scope.
-Instead of defining a common interface to decode and encode audio streams this proposal
-focuses on the smallest shared unit: the audio buffer.
-It is our conclusion that trying to define and enforce a common interface for all
-3rd party audio libraries is the wrong approach and would probably not lead to a large adoption.
+usages. In a [previous proposal](https://github.com/golang/proposal/blob/master/design/13432-mobile-audio.md)
+Jaana advocated for an audio decoding and playback interface.
+Defining such an interface is extremely challenging and the proposal was eventually withdrawn.
+Built upon the many conversations Jaana and I had, here is a different approach with a much reduced scope.
+Instead of defining a common interface to decode and play back audio streams, this proposal
+focuses on the smallest sharable unit: the audio buffer.
+It is our belief that trying to define and enforce a common interface for all
+3rd party audio libraries is the wrong approach and would probably not lead to a significant adoption.
 However, we can define the base unit that can be used as input and/or output so all
 audio libraries written in Go can communicate between each other in a common and optimized way.
-This approach was proven by implementing real life audio processing libraries and extracting
-a series of abstractions. Both Go idioms and audio DSP specific performance
-challenges have been considered.
+The technical feasibility of this approach was proven by implementing real life audio processing libraries.
+The abstractions presented here are extracted from those implementations.
+Both Go idioms and audio DSP specific performance challenges have been considered.
 
 ## Proposal
 
-After surveying most major audio libraries in Go, Python, Ruby, JS, C, Objective-C and Java I believe
+After surveying most major audio libraries in major programming languages, I believe
 we should keep the standard audio package as small as possible but with one clear goal:
 allow audio library authors to rely on a common interface to chain libraries together.
 Encoders, decoders, analyzers and effects should live in their own packages but they should
-all share a common "format" allowing a user to decode a file such as an aiff file, run it through
-an EQ, a compressor/limiter, extract the FFT output and compress the stream as an ogg file.
-This example audio chain might be using 6 different audio libraries, implemented by different teams.
+all share a common "format". As an example, such as approach should allow users to decode a file
+such as an aiff file, run it through an EQ, a compressor/limiter, extract the FFT output and
+compress the stream as an ogg file.
+This example audio chain might be using 6 different audio libraries, implemented by different individuals or teams.
 To make things more complicated, the same effect and analyzer libraries might also be used in a real time
-context where the signal from straight from the sound card.
+context where the signal come from straight from the sound card or a Digital Audio Workstation.
 
 At the heart of the proposal is the `audio.Buffer` interface:
 
@@ -68,8 +69,26 @@ This interface contains context information such as the source format (`PCMForma
 but also methods allowing the (potentially lossy) conversion of the underlying data to a different
 format.
 
-However, using this interface everywhere has some serious performance limitations since each library would
-have to check or potentially convert the input data. That's why this proposal also contains 3 implementations
+The PCM format information is important to understand the audio samples (data points).
+Here is the definition of the audio format type:
+
+```golang
+// Format is a high level representation of the underlying data.
+type Format struct {
+	// NumChannels is the number of channels contained in the data
+	NumChannels int
+	// SampleRate is the sampling rate in Hz
+	SampleRate int
+	// BitDepth is the number of bits of data for each sample
+	BitDepth int
+	// Endianess indicate how the byte order of underlying bytes
+	Endianness binary.ByteOrder
+}
+```
+
+Using the `audio.Buffer` interface everywhere could introduce performance limitations since each library would
+have to check or potentially convert the input data. In the case of real time or parallel server processing,
+performance might be a serious concern. That's why this proposal also contains 3 implementations
 of the `audio.Buffer` interface that can be used as raw implementation but also as input type.
 
 * `audio.FloatBuffer`, an implementation of the interface using an exposed slice of float64 values.
@@ -93,14 +112,15 @@ As the per the interface definition, each implementation knows how to convert it
 The reason why those other implementations exist and are part of the package is because some libraries
 might only want to deal with a specific data type. They would therefore expose a specific implementation
 as an input and output the the interface type. This is crucial to allow library authors to avoid paying
-great performance penalties. When performance doesn't matter, then the input type can be generic.
-The 3 default implementation should cover the needs of most if not all implementors.
+performance penalties. When performance doesn't matter, then the input type can be generic.
+The 3 default implementations should cover the needs of most, if not all implementors.
 
-Note that the audio data contained in a slice is exported on purpose, so it can be mutated and buffers be reused.
+Note that the audio data contained in a slice is exported on purpose allowing it can be mutated and buffers reused.
 
 The implementation in code of this proposal is available [here](https://github.com/go-audio/audio/blob/master/audio.go)
 [`wav`](https://github.com/go-audio/wav) and [`aiff`](https://github.com/go-audio/aiff) codecs using this proposal
-are also [available under the same organization](https://github.com/go-audio). Effect libraries are also on their way.
+are also [available under the same organization](https://github.com/go-audio).
+Effect libraries are also on their way.
 
 
 ## Rationale
