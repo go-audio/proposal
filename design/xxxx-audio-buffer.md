@@ -69,8 +69,8 @@ but also methods allowing the (potentially lossy) conversion of the underlying d
 format.
 
 However, using this interface everywhere has some serious performance limitations since each library would
-have to check or convert the input data. That's why this proposal also contains 3 implementations
-of the `audio.Buffer` interface:
+have to check or potentially convert the input data. That's why this proposal also contains 3 implementations
+of the `audio.Buffer` interface that can be used as raw implementation but also as input type.
 
 * `audio.FloatBuffer`, an implementation of the interface using an exposed slice of float64 values.
 * `audio.Float32Buffer`, a performance optimized implementation of the interface using an exposed slice of float32 values.
@@ -105,19 +105,48 @@ are also [available under the same organization](https://github.com/go-audio). E
 
 ## Rationale
 
-[A discussion of alternate approaches and the trade offs, advantages, and disadvantages of the specified approach.]
+The main advantage of this approach is that it keeps the standard library addition small and without complex
+logic while allowing the Go ecosystem to build various tools and libraries using a common audio language.
+Audio libraries in other programming languages are often fragmented due to the lack of a common interface
+encapsulating the audio data. Successful audio APIs such as [VST](https://en.wikipedia.org/wiki/Virtual_Studio_Technology)
+have a very small surface and give developers a lot of freedom.
+
+I see two main tradeoffs of this approach:
+
+1. Developers using Go might expect more from the standard library and might want to consume
+common audio formats like they do for images. This is a realistic request. The addition of wav and aiff
+codecs implemented on top of this proposal prove that it's possible. However, I would suggest to start by
+a small audio package without any codecs and let the Go community explore APIs that make sense in their context.
+We can always add codecs, effects and tools later on if there is a concrete need and a common ground when it comes
+to those libraries. The [go-audio](https://github.com/go-audio) organization can be a place for those interested
+in exploring and discussing audio APIs.
+
+2. Performance can still be a concern. I added a `float32` implementation after [this discussion](https://github.com/golang/go/issues/13432#issuecomment-269642926).
+It is something I considered in the past, mainly because C APIs supporting floats usually use 32 bit precision. This might be critical for
+real time processing and therefore opted to have it part of the proposal. Note that this buffer comes with a major drawback,
+most of the standard library such as the `math` package, operate on `float64`. If someone were to choose this format, they
+would not be able to easily rely on the rest of the standard library (at least without losing the performance optimization).
+When it comes to integers, however I don't suggest to opted to stick to `int` only. It this is a concern, I would
+suggest we look at an actual case and evaluate the cost of adding another implementation.
 
 ## Compatibility
 
-[A discussion of the change with regard to the
-[compatibility guidelines](https://golang.org/doc/go1compat).]
+`audio` being a new package without external dependencies there should not be
+any compatibility concerns.
 
 ## Implementation
 
-[A description of the steps in the implementation, who will do them, and when.
-This should include a discussion of how the work fits into [Go's release cycle](https://golang.org/wiki/Go-Release-Cycle).]
+The implementation is already available as a package [here](https://github.com/go-audio/audio).
+If this proposal is accepted, I (Matt Aimonetti) would be converting the package as standard package
+and send it for code review during the 1.9 planning release cycle for a 1.9 integration.
 
-## Open issues (if applicable)
+## Open issues
 
-[A discussion of issues relating to this proposal for which the author does not
-know the solution. This section may be omitted if there are none.]
+The submitted code will contain 3 sections:
+
+* the interface + implementations
+* a list of common audio formats for convenience
+* a [list of 6 conversion functions](https://github.com/go-audio/audio/blob/master/conv.go) very commonly used when doing audio DSP.
+
+While the 6 added conversion functions are extremely useful, they aren't audio specific and probably
+should live in a different standard package.
